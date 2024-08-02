@@ -1,0 +1,306 @@
+/////////////////////////////////////////////////////////////////
+//
+//    Pushy v1.0
+//
+//    by Oliver Kirchhoff
+//
+//    v1.0  (30/06/2014):  initial release
+//
+// usage: either call 'okPushyActivate()' as a permanent context
+//        or call it temporarily on a press-and-hold-hotkey
+//        and call 'okPushyDeactivate()' on the release-hotkey.
+//        Holding [Ctrl] scales objects at the same time to keep
+//        their size the same from the used viewport
+//
+// bugs:  this script fails with mixed selections.
+//        Vertex and objects for example
+//
+// toDo:  fix that bug!
+//
+/////////////////////////////////////////////////////////////////
+
+
+// //Press Hotkey command
+//
+// if (!`exists okPushyActivate`) {
+//    source "F:/_Library/Maya/mel/okPushy.mel";
+//    print "okPushy sourced!";
+// }
+// okPushyActivate;
+//
+
+
+// //Release Hotkey command
+//
+// okPushyDeactivate;
+//
+
+
+
+
+// create hotkey (default: z-press, z-release)
+global proc pushyHotkey()
+{
+	nameCommand -ann "pushyPress" -c "okPushyActivate();" pushyPressNameCommand;
+	nameCommand -ann "pushyRelease" -c "okPushyDeactivate();" pushyReleaseNameCommand;
+	hotkey -k "z" -n "pushyPressNameCommand" -rn "pushyReleaseNameCommand";
+	
+	print "\n... press and hold z for Pushy. Add [ctrl] for automatic scale.";
+}
+
+
+// reverses the order of a string array
+global proc string[] stringArrayReverse(string $inArray[])
+{
+string $outArray[];
+
+    int $size = size($inArray);
+    for ($member in $inArray) {
+    // counting backwards
+    $size--;  
+    $outArray[$size] = $member;
+    }
+    return $outArray;
+}
+
+
+// returns the average of all given vectors
+global proc vector averagePosition(vector $inVec[])
+{
+    vector $outVec = <<0,0,0>>;
+    
+    if (size($inVec) >1) {
+    // add all vectors 
+    for ($vec in $inVec) {
+        $outVec += $vec;
+    }
+    // devide the sum with the number of vectors
+    $outVec = $outVec/size($inVec);
+    } 
+    else 
+    $outVec = $inVec[0];
+    
+    return $outVec;
+}
+
+
+// converts polyfaces and edges in vertex arrays
+global proc string[] pointComponentList(string $sel[])
+{
+    // polyListComponentConversion returns arrays in the form [1:5] 
+    string $verts[] = `polyListComponentConversion -tv $sel`;
+    string $finalVerts[];
+
+    // but we need the vertexes separated. [1:2] ==> [1],[2]
+    for ($thing in $verts) {
+    string $vBuffer[];
+    tokenize $thing ":" $vBuffer;
+    
+    // it's an array if there is a ":" in the name
+    if (size($vBuffer)>1) {
+        // keep the basename of the component for later
+        string $baseName[];
+        tokenize $thing "[" $baseName;
+        int $endNum = (int)(substituteAllString($vBuffer[1], "]", ""));
+        string $sBuffer[];
+        tokenize $vBuffer[0] "[" $sBuffer;
+        int $staNum = (int)$sBuffer[1];
+        int $i;
+        for ($i=$staNum; $i<=$endNum; $i++){
+        $finalVerts[size($finalVerts)] = $baseName[0]+"["+$i+"]";
+        }
+    } else {
+        $finalVerts[size($finalVerts)] = $thing;
+    }
+    }
+    return $finalVerts;
+}
+
+
+// the click event of the Pushy context
+global proc okPushyPressed()
+{
+    // let's memorize a few things for the drag event
+    global string $okPushyCamera;        // the camera
+    global vector $okPushyVectors[];        // the vector array
+    global float  $okPushyStartPos[];        // the click screen position
+    global string $objectsList[];        // the selected objects
+    global vector $okPushyObjScales[];        // the individual scale of the objects
+    global vector $okPushyCameraPos;        // the camera world position
+    global string $modifier;            // the modifier key (CTRL)
+    global string $okPushyMode = "object";    // 'object' or 'component' selection
+    global int    $okPushyCamMode = 0;        // 0=perspective, 1=orthographic
+    global string $formerContext;        // last tool context before Pushy
+    
+    // We might have values in the arrays already. Let's clear arrays first!
+    $okPushyVectors     = {};
+    $objectsList     = {};
+    $okPushyObjScales     = {};
+
+    // get me the camera of the active viewport.
+    string $activePanel = `playblast -activeEditor`;
+    setFocus $activePanel;
+    $okPushyCamera  = `modelEditor -query -camera $activePanel`;
+    string $out[] = `ls -st $okPushyCamera`;
+    string $camShapes[];
+    
+    // first we need to be sure what is the transform of the camera
+    // but we also need the shape
+    if ($out[1] == "transform"){
+        $camShapes = `listRelatives -s $okPushyCamera`;
+    }
+    else {
+        $camShapes = {$okPushyCamera};
+        string $okPushyCameraTemp[] = `listRelatives -p $camShapes[0]`;
+        $okPushyCamera = $okPushyCameraTemp[0];
+    }
+    
+    //  Is it orthographic?
+    if (attributeExists( "orthographic", $camShapes[0])) {
+        $okPushyCamMode = `getAttr ($camShapes[0]+".orthographic")`;
+    }
+    
+    // let's take care of the objects
+    string $selection[] =`ls -sl`;
+    
+    // check if selection is a subcomponent (vtx, edge, poly, cv)
+    string $showType[] = `ls -st $selection[0]`;
+    if ($showType[1] == "float3") {
+    // convert poly and edge selections to vtx or cv list
+    $selection = pointComponentList($selection);
+    $okPushyMode = "component";
+    }
+   
+    if (size($selection) > 0 ) {
+    if ($okPushyCamMode == 0) {
+        $okPushyCameraPos = `xform -q -ws -t $okPushyCamera`;
+        
+        // Array with first index reserved for the average of all objects
+        $objectsList = stringArrayCatenate({"NONE"}, $selection);
+
+        // calculate average position
+        vector $positions[];
+        for ($obj in $objectsList) {
+        if ($obj != "NONE")
+            $positions[size($positions)] = `xform -q -ws -t $obj`;
+        }
+        vector $averagePos = averagePosition($positions);
+        
+        // store individual vector from average pos to objects
+        for ($obj in $objectsList) {
+        int $index = size($okPushyVectors);
+        if ($obj == "NONE") {
+            // store the vector camera to average position
+            $okPushyVectors[$index] = $okPushyCameraPos - $averagePos;
+            $okPushyObjScales[$index] = <<1,1,1>>;
+        } else {
+            // store the vectors from average position to individual positions
+            vector $oPos = $positions[$index-1];
+            $okPushyVectors[$index] =  $averagePos - $oPos;
+            // store the scale of the objects
+            $okPushyObjScales[$index] = `xform -r -q -s $obj`;
+        }
+        }
+    } else {
+        print "\northographic camera";
+    }
+    }
+
+    $okPushyStartPos = `draggerContext -query -anchorPoint okPushyContext`;
+    $modifier   = `draggerContext -query -modifier okPushyContext`;
+
+}
+
+
+// the drag event of the Pushy context
+global proc okPushyDrag()
+{
+    // let's recall a few things from the click event
+    global string $okPushyCamera;    // the camera
+    global vector $okPushyVectors[];    // the vector array
+    global float  $okPushyStartPos[];    // the click screen position
+    global string $objectsList[];    // the selected objects
+    global vector $okPushyObjScales[];    // the individual scale of the objects
+    global vector $okPushyCameraPos;    // the camera world position
+    global string $modifier;        // the modifier key (CTRL)
+    global string $okPushyMode;        // 'object' or 'component' selection
+    global int    $okPushyCamMode;    // 0=perspective, 1=orthographic
+    global string $formerContext;        // last tool context before Pushy
+    
+    float $sensitivity = 0.005;
+
+    float $okPushyScreenPos[] = `draggerContext -query -dragPoint okPushyContext`;
+
+    // push in perspective camera viewport
+    if ($okPushyCamMode == 0) {
+    float $changeDepth = 1 + (($okPushyScreenPos[0] - $okPushyStartPos[0]) *$sensitivity);
+    float $scale = 1;
+    
+    // is CTRL pressed? then objects also scale (or if scale context was active before Pushy)
+    if ($modifier == "ctrl" || $formerContext == "scaleSuperContext") { 
+        // scales the individual vectors as well
+        $scale = $changeDepth;
+    }
+    int $index = 0;
+    vector $averagePos = $okPushyCameraPos - $okPushyVectors[0] * $changeDepth;
+    for ($obj in $objectsList) {
+        
+        // skip the first object because it's "NONE"
+        if ($index > 0) {
+        vector $newPos = $averagePos - $okPushyVectors[$index] * $scale;
+        xform -ws -t ($newPos.x) ($newPos.y) ($newPos.z) $obj;
+        
+        // change transform scale if CTRL is pressed and not in component mode
+        if ($scale != 1 && $okPushyMode == "object") {
+            vector $newScale = $okPushyObjScales[$index] * $scale;
+            xform -s ($newScale.x) ($newScale.y) ($newScale.z) $obj;
+        }
+        }
+        $index++;
+    }
+    }
+    // push in orthographic camera viewport
+    else {
+    
+    }
+    
+    refresh -force;
+
+}
+
+
+// the activation of the Pushy context
+global proc okPushyActivate()
+{
+    string $activePanel = `playblast -activeEditor`;
+    setFocus $activePanel;
+    modelEditor -e -av $activePanel;
+    
+    // remember current context for deactivation of Pushy context
+    global string $formerContext;
+    $formerContext = `currentCtx`;
+
+    if (`draggerContext -exists okPushyContext`) deleteUI okPushyContext;
+
+    draggerContext
+    -cursor "dolly"
+    -pressCommand "okPushyPressed"
+    -dragCommand "okPushyDrag"
+    -space "screen"
+    -name "Pushy"
+    -undoMode "step"
+    okPushyContext;
+
+    setToolTo okPushyContext;    
+}
+
+
+// de-activation of the context and activation of the previous context
+global proc okPushyDeactivate()
+{
+    global string $formerContext;
+    setToolTo $formerContext;
+}
+
+
+
