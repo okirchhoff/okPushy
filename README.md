@@ -1,7 +1,7 @@
 ## The Maker
 okPushy v1.2.2 Maya Script
 
-by Oliver Kirchhoff (kirchhoff.oliver@gmail.com)
+by Oliver Kirchhoff (kirchhoff.oliver@gmail.com)  
 IMDB: [http://www.imdb.com/name/nm0456285/](http://www.imdb.com/name/nm0456285/) 
 
 ## Versions
