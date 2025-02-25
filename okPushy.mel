@@ -44,19 +44,15 @@
 //
 // bugs:  this script fails with mixed type selections, like
 //        vertices and objects at the same time.
-//        The "whatIs" return value for the source command in the
-//        hotkey-press event changed in some Maya versions. Please
-//        check what your Maya-version is returning and change the
-//        the comparison value for the hotkey-press event.
-//         
+//                
 //
 // toDo:  fix that bug!
 //
 /////////////////////////////////////////////////////////////////
 ///////// Copy this to your hotkey-press event:
 // 
-// if (startsWith(`whatIs okPushyActivate`, "Mel") == 0) {
-//      source "/the/path/to/the/script/please/replace/okPushy.mel";
+// if (!`exists okPushyActivate`) {
+//      source "c:/the/path/to/the/script/please/replace/okPushy.mel";
 // }
 // okPushyActivate();
 //
