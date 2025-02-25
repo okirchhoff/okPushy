@@ -24,12 +24,17 @@ ___
 ## Hotkeys in Maya        
 ### Copy this to your hotkey-press event:
 ```mel
-if (startsWith(`whatIs okPushyActivate`, "Mel") == 0) {
-     source "/the/path/to/the/script/please/replace/okPushy.mel";
+//Press Hotkey command
+
+if (!`exists okPushyActivate`) {
+   source "C:/the/path/to/the/script/please/replace/okPushy.mel";
+   print "okPushy sourced!";
 }
 okPushyActivate();
 ```
 ### Copy this to your hotkey-release event:
 ```mel
+//Release Hotkey command
+
 okPushyDeactivate();
 ```
