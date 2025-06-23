@@ -17,7 +17,9 @@
 //    v1.2.2 (08/07/2016):  Fixed the issue of okPushy to fail
 //                          if trying to use it on freshly created
 //                          primitive objects
-//
+//	  v1.2.3 (20/10/2023):  Fixed the issue of okPushy to fail
+//                          if trying to use it with more than one
+//                          vertex.
 // What it does:
 //        This script changes the tool context. In this mode all
 //        selected objects or components will be pushed in camera
@@ -64,12 +66,27 @@
 //
 /////////////////////////////////////////////////////////////////
 
+global int $devMode = 0; // set to 1 for debug infos, 0 for no debug infos
+
+
+// Print Debug infos if in Dev mode
+global proc _debug(int $linenum, string $info, string $value[])
+{
+	// if the global variable "devMode" is set to 1, then print debug infos
+	global int $devMode;
+	if ($devMode == 1) {
+		for ($i=0; $i<size($value); $i++) {
+			// print each line of the array
+			print ("DEBUG -- line: "+$linenum + " >> " +$info + " = " +$value[$i]+"\n");
+		}
+	}
+}
 
 
 // reverses the order of a string array
 global proc string[] stringArrayReverse(string $inArray[])
 {
-string $outArray[];
+	string $outArray[];
 
     int $size = size($inArray);
     for ($member in $inArray) {
@@ -77,7 +94,10 @@ string $outArray[];
 		$size--;  
 		$outArray[$size] = $member;
     }
-    return $outArray;
+    
+	_debug(95, "reverse string array", $outArray);
+	
+	return $outArray;
 }
 
 
@@ -86,17 +106,20 @@ global proc vector averagePosition(vector $inVec[])
 {
     vector $outVec = <<0,0,0>>;
     
+
     if (size($inVec) >1) {
 		// add all vectors 
 		for ($vec in $inVec) {
 		    $outVec += $vec;
 		}
 		// devide the sum with the number of vectors
-		$outVec = $outVec/size($inVec);
+		$outVec = $outVec / size($inVec);
     } 
     else 
 		$outVec = $inVec[0];
     
+	_debug(120, "averagePos outVec", {string($outVec.x), string($outVec.y), string($outVec.z)});
+
     return $outVec;
 }
 
@@ -108,7 +131,7 @@ global proc string stripNumberOfChars(int $number, string $direction, string $in
     if ($direction == "right")
 		$output = `substring $input 1 (size($input)-$number)`;
     else
-		$output = `substring $input ($number+1) size($input)`;
+		$output = `substring $input ($number+1) (size($input))`;
     return $output;
 }
 
@@ -240,6 +263,8 @@ global proc okPushyPressed()
     
     // check if selection is a subcomponent (vtx, edge, poly, cv)
     string $showType[] = `ls -st $selection[0]`;
+	_debug(264, "showType", $showType);
+
     if ($showType[1] == "float3") {
 		// convert poly and edge selections to vtx array
 		$selection = pointComponentList($selection);
@@ -260,9 +285,7 @@ global proc okPushyPressed()
 		}
 	}
 	
-	// refresh of the selection list (just in case)
-	$selection =`ls -sl`;
-
+	// if the selection is empty, we don't need to do anything
     if (size($selection) > 0 ) {
 		if ($okPushyCamMode == 0) {
 		    $okPushyCameraPos = `xform -q -ws -t $okPushyCamera`;
@@ -272,9 +295,14 @@ global proc okPushyPressed()
 
 		    // calculate average position
 		    vector $positions[];
+
+			_debug(297, "objectsList", $objectsList);
+
 		    for ($obj in $objectsList) {
 				if ($obj != "NONE")
-				    $positions[size($positions)] = `xform -q -ws -t $obj`;
+					
+					//append position of the object to the positions array
+					$positions[size($positions)] = `xform -q -ws -t $obj`;
 		    }
 		    
 		    vector $averagePos = averagePosition($positions);
@@ -331,6 +359,7 @@ global proc okPushyDrag()
 	
 		// is CTRL pressed? then objects also scale (or if scale context was active before Pushy)
 		if ($modifier == "ctrl" || $formerContext == "scaleSuperContext"){
+			// scales the individual vectors as well
 		    $scale = $changeDepth;
 		}
 		int $index = 0;
@@ -343,7 +372,7 @@ global proc okPushyDrag()
 				xform -ws -t ($newPos.x) ($newPos.y) ($newPos.z) $obj;
 				
 				// change transform scale if CTRL is pressed and not in component mode
-				if (($modifier == "ctrl" || $formerContext == "scaleSuperContext") && $okPushyMode == "object") {
+				if (($modifier == "ctrl" || $formerContext == "scaleSuperContext") && $scale != 1 && $okPushyMode == "object") {
 				    vector $newScale = $okPushyObjScales[$index] * $scale;
 				    xform -s ($newScale.x) ($newScale.y) ($newScale.z) $obj;
 				}
