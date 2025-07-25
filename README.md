@@ -1,4 +1,4 @@
-Note: This version has been deprecated.
+**Note:** This version has been deprecated.
 Please check out the complete Python rewrite here:
 👉 [okPushy2 on GitHub](https://github.com/okirchhoff/okPushy2)
 
