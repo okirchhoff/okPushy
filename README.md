@@ -1,3 +1,7 @@
+Note: This version has been deprecated.
+Please check out the complete Python rewrite here:
+👉 okPushy2 on GitHub [https://github.com/okirchhoff/okPushy2](https://github.com/okirchhoff/okPushy2)
+
 ## The Maker
 okPushy v1.2.3 Maya Script
 
