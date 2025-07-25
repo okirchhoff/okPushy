@@ -1,6 +1,6 @@
 /////////////////////////////////////////////////////////////////
 //
-//    okPushy v1.2.2
+//    okPushy v1.2.3
 //
 //    by Oliver Kirchhoff (kirchhoff.oliver@gmail.com)
 //    IMDB: http://www.imdb.com/name/nm0456285/ 
@@ -17,7 +17,7 @@
 //    v1.2.2 (08/07/2016):  Fixed the issue of okPushy to fail
 //                          if trying to use it on freshly created
 //                          primitive objects
-//    v1.2.3 (20/10/2023):  Fixed the issue of okPushy to fail
+//	  v1.2.3 (20/10/2023):  Fixed the issue of okPushy to fail
 //                          if trying to use it with more than one
 //                          vertex.
 // What it does:
@@ -48,7 +48,8 @@
 //        vertices and objects at the same time.
 //                
 //
-// toDo:  fix that bug!
+// toDo:  there is some latency while dragging the mouse...
+//		  make it work in orthogonal viewports as well
 //
 /////////////////////////////////////////////////////////////////
 ///////// Copy this to your hotkey-press event:
@@ -95,7 +96,7 @@ global proc string[] stringArrayReverse(string $inArray[])
 		$outArray[$size] = $member;
     }
     
-	_debug(95, "reverse string array", $outArray);
+	_debug(98, "reverse string array", $outArray);
 	
 	return $outArray;
 }
@@ -118,7 +119,7 @@ global proc vector averagePosition(vector $inVec[])
     else 
 		$outVec = $inVec[0];
     
-	_debug(120, "averagePos outVec", {string($outVec.x), string($outVec.y), string($outVec.z)});
+	_debug(121, "averagePos outVec", {string($outVec.x), string($outVec.y), string($outVec.z)});
 
     return $outVec;
 }
@@ -263,7 +264,7 @@ global proc okPushyPressed()
     
     // check if selection is a subcomponent (vtx, edge, poly, cv)
     string $showType[] = `ls -st $selection[0]`;
-	_debug(264, "showType", $showType);
+	_debug(266, "showType", $showType);
 
     if ($showType[1] == "float3") {
 		// convert poly and edge selections to vtx array
@@ -296,7 +297,7 @@ global proc okPushyPressed()
 		    // calculate average position
 		    vector $positions[];
 
-			_debug(297, "objectsList", $objectsList);
+			_debug(299, "objectsList", $objectsList);
 
 		    for ($obj in $objectsList) {
 				if ($obj != "NONE")
@@ -324,6 +325,7 @@ global proc okPushyPressed()
 		    }
 		} else {
 		    print "\northographic camera";
+
 		}
     }
 
@@ -383,7 +385,9 @@ global proc okPushyDrag()
     }
     // push in orthographic camera viewport
     else {
-    
+    	float $changeDepth = 1 + (($okPushyScreenPos[0] - $okPushyStartPos[0]) *$sensitivity);
+		float $scale = 1;
+
     }
     
     refresh -force;
